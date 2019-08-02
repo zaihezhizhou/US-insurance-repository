@@ -1,0 +1,59 @@
+setwd("c:/")
+insurance<-read.csv("C:/usdata/Rate.csv",header=T)
+install.packages("usmap")
+install.packages("dplyr")
+####indicator处理missing data####
+ShortInsurance<-insurance[,c("BusinessYear","StateCode","IndividualRate")]
+
+ShortInsurance$IndividualRate[ShortInsurance$IndividualRate == 999999 ] <-0
+ShortInsurance$IndividualRate[ShortInsurance$IndividualRate == 9999 ] <-0
+
+ShortInsurance$MissingIndicator[ShortInsurance$IndividualRate == 0]<-1
+ShortInsurance$MissingIndicator[ShortInsurance$IndividualRate > 0]<-0
+
+
+###dplyr#####
+
+library(dplyr)
+InsuranceRate<-tbl_df(ShortInsurance) 
+insurance2016<-filter(InsuranceRate,BusinessYear == 2016)%>%group_by(StateCode)
+#select data in 2016 for the convenience of further study. May change Variable"BusinessYear"if needed #
+
+##投保人数、平均数、中位数###
+NewInsurance2016<-summarize(insurance2016,n(),MedianCost=median(IndividualRate),MeanRate=mean(IndividualRate))
+
+##画图##
+
+library(usmap)
+library(ggplot2)
+names(NewInsurance2016)[1] <-"state"
+
+plot_usmap(data =NewInsurance2016, values = "MeanRate", lines = "red") + 
+  scale_fill_continuous(name = "Mean Insurance Rate (2016)", label = scales::comma) + 
+  theme(legend.position = "right")
+
+###stroke&cancer####
+stroke<-read.csv("C:/usdata/stroke_mortality.csv",header=T)
+Stroke<-tbl_df(stroke)
+Stroke2016<-filter(Stroke,YEAR ==2016)%>%rename(state = STATE,StrokeRate=RATE)
+mergetable1<-left_join(NewInsurance2016,Stroke2016, copy = FALSE)
+
+cancer<-read.csv("C:/usdata/cancer2016.csv",header=T)
+Cancer<-tbl_df(cancer)
+Cancer$state <- c('NM', 'AZ', 'CA', 'CO', 'DC', 'NV', 'AK', 'HI', 'MA', 'OR', 'TX', 'UT', 'VA', 'WY', 'FL', 'ID', 'IN', 'MD', 'MI', 'MN', 'MO', 'NE', 'ND', 'OK', 'RI', 'SC', 'SD', 'TN', 'VT', 'MA', 'AL', 'AR', 'CT', 'DE', 'GA', 'IL', 'IA', 'KS', 'KY', 'LA', 'ME', 'MS', 'MT', 'NH', 'NJ', 'NY', 'NC', 'OH', 'PA', 'WV', 'WI')
+ShortCancer<-Cancer[,c("Area","AgeAdjustedRate","state")]
+mergetable2<-left_join(mergetable1,ShortCancer, copy = FALSE)
+
+#this line is to rename variables#
+fix(mergetable2)
+
+
+insurance_merge<-select(mergetable2,State,MeanInsuranceRate,MedianInsuranceCost,StrokeRate,CancerRate)%>%as.data.frame()
+write.csv(insurance_merge,"C:/usdata/insurance_merge2016.csv")
+
+###Get Spearman Correlation###
+x<-insurance_merge[,c("MeanInsuranceRate")]
+y<-insurance_merge[,c("StrokeRate","CancerRate")]
+cor(x,y,method="spearman")
+
+
