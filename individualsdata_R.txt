@@ -1,0 +1,51 @@
+library(foreign)
+library(Hmisc)
+
+demo<-sasxport.get("c:/usdata/DEMO_I.XPT")
+demo<-demo[,1:10]
+bpq<-sasxport.get("c:/usdata/BPQ_I.XPT")
+bpq<-bpq[,1:10]
+alq<-sasxport.get("c:/usdata/ALQ_I.XPT")
+alq<-alq[,1:10]
+inq<-sasxport.get("c:/usdata/INQ_I.XPT")
+inq<-inq[,1:10]
+
+dr1tot<-sasxport.get("c:/usdata/DR1TOT_I.XPT")
+dr1tot<-dr1tot[,1:10]
+
+###合并data frame###
+df_list <- list(demo,bpq,alq,inq,dr1tot)
+df_total <- Reduce(function(x,y) merge(x,y,by='seqn'),df_list)
+rownames(df_total)=df_total[,1]
+total=df_total[,-1]
+head(total)
+###计算缺失值的数量###
+mean(is.na(total$ridagemn))
+mean(is.na(total$ridexagm))
+
+##发现两者几乎完全缺失，后续工作发现"sddsrvyr"和"ridstatr"为常量，剔除变量##
+elivars<-names(total) %in% c("sddsrvyr","ridstatr","ridagemn","ridexagm")
+newdata<-total[!elivars]
+
+###再次识别缺失值###
+mean(!complete.cases(newdata))
+
+###多重插补###
+library(mice)
+imp<-mice(newdata,seed=1234)
+imp
+dataset1<-complete(imp,action=1)
+head(dataset1)
+###标准化###
+data_stand<-scale(dataset1)
+###cov/cor/pcor矩阵###
+cov_mat<-cov(data_stand)
+cor_mat<-cor(data_stand)
+library("corpcor")
+###发现偏相关系数不能得出的调整###
+newcor<-scale(cor_mat)
+newcor[is.na(newcor)]<-0
+pcor_mat<-cor2pcor(newcor)
+write.csv(cov_mat,"C:/usdata/indiv_cov.csv")
+write.csv(cor_mat,"C:/usdata/indiv_cor.csv")
+write.csv(pcor_mat,"C:/usdata/indiv_pcor.csv")
