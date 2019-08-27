@@ -1,0 +1,61 @@
+###导入数据###
+library(foreign)
+library(Hmisc)
+ori_data<-sasxport.get("c:/usdata/DIQ_I.XPT")
+head(ori_data)
+###将DIQ010转化为二型值结果###
+ori_data$diq010[ori_data$diq010 ==1] <-1
+ori_data$diq010[ori_data$diq010 !=1] <-0
+ori_data$diq010<- factor(ori_data$diq010,levels=c(0,1),labels=c("No","Yes"))
+###将样本分成70%traindata,30%testdata)###
+set.seed(1234)
+ind<-sample(x=2,size=nrow(ori_data),replace=TRUE,prob=c(0.7,0.3))
+traindata<-ori_data[ind ==1,]
+testdata<-ori_data[ind ==2,]
+###设定回归模型###
+summary(traindata)
+fit.full<-glm(diq010~., family=binomial(),data=traindata)
+fit.reduced<-glm(diq010~diq160+diq170+diq172+diq175a+diq180+diq050+diq070, family=binomial(),data=traindata,control=list(maxit=100))
+summary(fit.full)
+fit.reduced<-glm(diq010~diq170+diq180+diq050+diq070, family=binomial(),data=traindata,control=list(maxit=100))
+summary(fit.reduced)
+###检验模型ROC###
+fitted.results <- predict(fit.reduced,newdata=testdata,type='response')
+fitted.results[is.na(fitted.results)] <-0
+predata<-data.frame(prob=fitted.results,obs=testdata$diq010)
+libary(pROC)
+modelroc<- roc(testdata$diq010,fitted.results)
+plot(modelroc, print.auc=TRUE, auc.polygon=TRUE, grid=c(0.1, 0.2),
+     grid.col=c("green", "red"), max.auc.polygon=TRUE,
+     auc.polygon.col="skyblue", print.thres=TRUE)
+###检验模型accuracy###
+fitted.results <- ifelse(fitted.results > 0.5,1,0)
+misClasificError <- mean(fitted.results != testdata$diq010)
+print(paste('Accuracy',1-misClasificError))
+
+###检验模型confusion matrix###
+
+table(testdata$diq010,fitted.results)
+
+
+
+###删除####
+traindata$diq160[traindata$diq160 ==2] <-0
+traindata$diq170[traindata$diq170 ==2] <-0
+traindata$diq172[traindata$diq172 ==2] <-0
+traindata$diq175a[traindata$diq175a ==2] <-0
+traindata$diq180[traindata$diq180 ==2] <-0
+traindata$diq050[traindata$diq050 ==2] <-0
+traindata$diq070[traindata$diq070 ==2] <-0
+fit.full<-glm(diq010~diq160+diq170+diq172+diq175a+diq180+diq050+diq070, family=binomial(),data=traindata,control=list(maxit=100))
+summary(fit.full)
+###caret包###
+library(caret)
+inTrain<-createDataPartition(y=ori_data$diq010,p=0.7,list=FALSE)
+training<-ori_data[inTrain,]
+testing<-ori_data[-inTrain,]
+modelFit<-train(diq010~.,data=training,method="glm")
+predictions<-predict(modelFit,newdata=testing)
+confusionMatrix(predictions,testing$diq010)
+###删除####
+
