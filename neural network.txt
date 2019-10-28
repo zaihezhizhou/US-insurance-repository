@@ -1,0 +1,79 @@
+devtools::install_github("rstudio/keras")
+library(keras)
+install_keras()
+###导入数据###
+library(foreign)
+library(Hmisc)
+ori_data<-sasxport.get("c:/usdata/DIQ_I.XPT")
+###观察数据###
+head(ori_data)
+str(ori_data)
+dim(ori_data)
+###将DIQ010转化为二型值结果###
+ori_data$diq010[ori_data$diq010 ==1] <-1
+ori_data$diq010[ori_data$diq010 !=1] <-0
+##数据集转化成矩阵##
+dataset1<-as.matrix(ori_data)
+dimnames(dataset)<-NULL
+##normalize "dataset"##
+dataset1<-normalize(dataset)
+summary(dataset1)
+###将样本分成70%training set,10%validation set，20% testing set###
+set.seed(1234)
+ind<-sample(x=2,size=nrow(dataset1),replace=TRUE,prob=c(0.7,0.1))
+
+dataset1.training<-dataset1[ind ==1,3:54]
+dataset1.test<-dataset1[ind ==2,3:54]
+
+dataset1.trainingtarget<-dataset1[ind ==1,2]
+dataset1.testtarget<-dataset1[ind ==2,2]
+
+##OHE##
+dataset1.trainLabels <- to_categorical(dataset1.trainingtarget)
+dataset1.testLabels <- to_categorical(dataset1.trainingtarget)
+print(dataset1.testLables)
+
+####构建3层神经网络####
+model1<-keras_model_sequential()
+model1 %>%
+           layer_dense(units = 150,activation = 'relu', input_shape = c(52))%>%
+           layer_dense(units = 150,activation = 'relu')%>%
+           layer_dense(units =2 ,activation = 'softmax')
+
+#删除# Compile the model#
+model1%>% compile(
+     loss = 'categorical_crossentropy',
+     optimizer = 'adam',
+     metrics = 'accuracy'
+ )
+# Fit the model#
+history<-model %>% fit(
+     dataset1.training, 
+     dataset1.trainLabels, 
+     epochs = 200, 
+     batch_size = 5, 
+     validation_split = 0.2
+ )
+#plot the history#
+plot(history)
+# Plot the model loss of the training data#
+plot(history$metrics$loss, main="Model Loss", xlab = "epoch", ylab="loss", col="blue", type="l")
+
+# Plot the model loss of the test data#
+lines(history$metrics$val_loss, col="green")
+
+# Add legend#
+legend("topright", c("train","test"), col=c("blue", "green"), lty=c(1,1))
+
+# Plot the accuracy of the training data #
+plot(history$metrics$acc, main="Model Accuracy", xlab = "epoch", ylab="accuracy", col="blue", type="l")
+
+# Plot the accuracy of the validation data#
+lines(history$metrics$val_acc, col="green")
+
+# Add Legend#
+legend("bottomright", c("train","test"), col=c("blue", "green"), lty=c(1,1))
+
+
+install_keras(method=c("auto", "virtualenv", "conda"),conda="auto", version="default", tensorflow="default",extra_packages = c("tensorflow-hub"))
+#删除#
